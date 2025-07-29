@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>动态表情生成器</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>🎭 动态表情生成器</h1>
+            <p>创建你的专属动态表情包</p>
+        </header>
+
+        <main class="main-content">
+            <!-- 上传区域 -->
+            <section class="upload-section">
+                <h2>📁 上传素材</h2>
+                <label class="upload-area" id="uploadArea" for="fileInput">
+                    <div class="upload-placeholder">
+                        <span class="upload-icon">📷</span>
+                        <p>拖拽图片/视频到这里或点击选择文件</p>
+                        <small>支持 JPG、PNG、GIF、MP4、WebM 格式，无数量限制</small>
+                    </div>
+                    <input type="file" id="fileInput" multiple accept="image/*,video/*" style="display: none;">
+                </label>
+                <div class="file-list" id="fileList"></div>
+            </section>
+
+            <!-- 预览和控制区域 -->
+            <section class="workspace">
+                <!-- 画布预览区 -->
+                <div class="canvas-container">
+                    <h3>🎨 预览区域</h3>
+                    <div class="canvas-wrapper">
+                        <canvas id="previewCanvas" width="300" height="300"></canvas>
+                        <div class="canvas-controls">
+                            <button id="playBtn" class="btn btn-primary">▶️ 播放</button>
+                            <button id="pauseBtn" class="btn btn-secondary">⏸️ 暂停</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 控制面板 -->
+                <div class="control-panel">
+                    <h3>⚙️ 控制面板</h3>
+                    
+                    <!-- 文字内容设置 -->
+                    <h4>📝 文字内容</h4>
+                    <div class="control-group">
+                        <label for="textInput">输入文字</label>
+                        <input type="text" id="textInput" placeholder="输入你的文字..." maxlength="50">
+                    </div>
+
+                    <!-- 字体样式设置 -->
+                    <h4>🔤 字体样式</h4>
+                    <div class="control-row">
+                        <div class="control-group">
+                            <label>字体选择</label>
+                            <div class="custom-font-selector">
+                                <div class="font-selector-header" id="fontSelectorHeader">
+                                    <span class="selected-font" style="font-family: Arial, sans-serif;">Arial</span>
+                                    <span class="dropdown-arrow">▼</span>
+                                </div>
+                                <div class="font-options-dropdown" id="fontOptionsDropdown" style="display: none;">
+                                    <!-- 中文字体组 -->
+                                    <div class="font-group">
+                                        <div class="font-group-label">中文字体</div>
+                                        <div class="font-option" data-value="'Microsoft YaHei', sans-serif" style="font-family: 'Microsoft YaHei', sans-serif;">微软雅黑</div>
+                                        <div class="font-option" data-value="'SimHei', sans-serif" style="font-family: 'SimHei', sans-serif;">黑体</div>
+                                        <div class="font-option" data-value="'SimSun', serif" style="font-family: 'SimSun', serif;">宋体</div>
+                                        <div class="font-option" data-value="'KaiTi', serif" style="font-family: 'KaiTi', serif;">楷体</div>
+                                        <div class="font-option" data-value="'Source Han Sans CN', sans-serif" style="font-family: 'Source Han Sans CN', sans-serif;">思源黑体</div>
+                                    </div>
+                                    
+                                    <!-- 英文字体组 -->
+                                    <div class="font-group">
+                                        <div class="font-group-label">英文字体</div>
+                                        <div class="font-option selected" data-value="Arial, sans-serif" style="font-family: Arial, sans-serif;">Arial</div>
+                                        <div class="font-option" data-value="Helvetica, sans-serif" style="font-family: Helvetica, sans-serif;">Helvetica</div>
+                                        <div class="font-option" data-value="'Times New Roman', serif" style="font-family: 'Times New Roman', serif;">Times New Roman</div>
+                                        <div class="font-option" data-value="Georgia, serif" style="font-family: Georgia, serif;">Georgia</div>
+                                        <div class="font-option" data-value="Verdana, sans-serif" style="font-family: Verdana, sans-serif;">Verdana</div>
+                                    </div>
+                                    
+                                    <!-- 装饰字体组 -->
+                                    <div class="font-group">
+                                        <div class="font-group-label">装饰字体</div>
+                                        <div class="font-option" data-value="Impact, sans-serif" style="font-family: Impact, sans-serif;">Impact</div>
+                                        <div class="font-option" data-value="'Courier New', monospace" style="font-family: 'Courier New', monospace;">Courier New</div>
+                                        <div class="font-option" data-value="'Comic Sans MS', cursive" style="font-family: 'Comic Sans MS', cursive;">Comic Sans MS</div>
+                                        <div class="font-option" data-value="'Brush Script MT', cursive" style="font-family: 'Brush Script MT', cursive;">Brush Script MT</div>
+                                        <div class="font-option" data-value="'Bradley Hand', cursive" style="font-family: 'Bradley Hand', cursive;">Bradley Hand</div>
+                                        <div class="font-option" data-value="'Lucida Handwriting', cursive" style="font-family: 'Lucida Handwriting', cursive;">Lucida Handwriting</div>
+                                        <div class="font-option" data-value="Papyrus, fantasy" style="font-family: Papyrus, fantasy;">Papyrus</div>
+                                        <div class="font-option" data-value="Chalkduster, fantasy" style="font-family: Chalkduster, fantasy;">Chalkduster</div>
+                                        <div class="font-option" data-value="'Marker Felt', fantasy" style="font-family: 'Marker Felt', fantasy;">Marker Felt</div>
+                                        <div class="font-option" data-value="'Curlz MT', cursive" style="font-family: 'Curlz MT', cursive;">Curlz MT</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="control-group">
+                            <label for="fontWeight">字体粗细</label>
+                            <select id="fontWeight">
+                                <option value="normal">正常</option>
+                                <option value="bold">粗体</option>
+                                <option value="lighter">细体</option>
+                                <option value="bolder">特粗</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="control-row">
+                        <div class="control-group">
+                            <label for="fontSize">字体大小</label>
+                            <input type="range" id="fontSize" min="12" max="80" value="24">
+                            <span id="fontSizeValue">24px</span>
+                        </div>
+                        
+                        <div class="control-group">
+                            <label for="textColor">文字颜色</label>
+                            <input type="color" id="textColor" value="#ffffff">
+                        </div>
+                    </div>
+
+                    <!-- 动画效果设置 -->
+                    <h4>🎬 动画效果</h4>
+                    <div class="control-group">
+                        <label for="animationType">动画类型</label>
+                        <select id="animationType">
+                            <option value="none">无动画</option>
+                            <optgroup label="基础动画">
+                                <option value="bounce">跳动效果</option>
+                                <option value="fade">渐变闪烁</option>
+                                <option value="rotate">旋转缩放</option>
+                                <option value="shake">弹性摆动</option>
+                                <option value="typewriter">打字机效果</option>
+                            </optgroup>
+                            <optgroup label="高级动画">
+                                <option value="slide">滑动进入</option>
+                                <option value="zoom">缩放脉冲</option>
+                                <option value="rainbow">彩虹变色</option>
+                                <option value="wave">波浪起伏</option>
+                                <option value="flip">翻转效果</option>
+                                <option value="elastic">弹性拉伸</option>
+                                <option value="glitch">故障闪烁</option>
+                                <option value="orbit">轨道旋转</option>
+                            </optgroup>
+                        </select>
+                    </div>
+
+                    <!-- 位置设置 -->
+                    <h4>📍 文字位置</h4>
+                    <div class="control-row">
+                        <div class="control-group">
+                            <label for="textX">X 位置</label>
+                            <input type="range" id="textX" min="0" max="300" value="150">
+                        </div>
+                        
+                        <div class="control-group">
+                            <label for="textY">Y 位置</label>
+                            <input type="range" id="textY" min="0" max="300" value="150">
+                        </div>
+                    </div>
+
+                    <!-- GIF 设置 -->
+                    <div class="control-group">
+                        <h4>🎞️ GIF 设置</h4>
+                        <div class="control-row">
+                            <div class="control-group">
+                                <label for="gifDuration">持续时间(秒)</label>
+                                <input type="range" id="gifDuration" min="1" max="10" value="3">
+                                <span id="durationValue">3s</span>
+                            </div>
+                            
+                            <div class="control-group">
+                                <label for="gifQuality">质量</label>
+                                <input type="range" id="gifQuality" min="1" max="20" value="10">
+                                <span id="qualityValue">10</span>
+                            </div>
+                        </div>
+                        
+                        <!-- 微信优化选项 -->
+                        <div class="control-group">
+                            <label class="wechat-optimize-label">
+                                <input type="checkbox" id="wechatOptimize" checked>
+                                <span class="checkmark"></span>
+                                📱 微信优化（自动压缩至1M以下）
+                            </label>
+                        </div>
+                        
+                        <!-- 压缩状态显示 -->
+                        <div class="compression-status" id="compressionStatus" style="display: none;">
+                            <div class="compression-progress">
+                                <div class="compression-spinner"></div>
+                                <span id="compressionText">正在优化中...</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 操作按钮 -->
+                    <div class="action-buttons">
+                        <button id="generateBtn" class="btn btn-success">🎬 生成 GIF</button>
+                        <button id="downloadBtn" class="btn btn-primary" disabled>💾 下载</button>
+                        <button id="resetBtn" class="btn btn-warning">🔄 重置</button>
+                    </div>
+
+                    <!-- 进度条 -->
+                    <div class="progress-container" id="progressContainer" style="display: none;">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progressFill"></div>
+                        </div>
+                        <span class="progress-text" id="progressText">0%</span>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- 结果预览 -->
+        <section class="result-section" id="resultSection" style="display: none;">
+            <h3>🎉 生成结果</h3>
+            <div class="result-preview">
+                <img id="resultGif" alt="生成的GIF">
+                <div class="result-info">
+                    <p>文件大小: <span id="fileSize">-</span></p>
+                    <p>尺寸: <span id="fileDimensions">-</span></p>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- 视频抽帧模态框 -->
+    <div class="modal-overlay" id="frameExtractionModal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>🎬 视频抽帧设置</h3>
+                <button class="modal-close" id="closeFrameModal">&times;</button>
+            </div>
+            
+            <div class="modal-body">
+                <!-- 抽帧设置 -->
+                <div class="frame-settings">
+                    <div class="control-group">
+                        <label for="frameInterval">抽帧间隔 (秒)</label>
+                        <input type="range" id="frameInterval" min="0.5" max="5" step="0.5" value="1">
+                        <span id="frameIntervalValue">1.0s</span>
+                    </div>
+                    
+                    <div class="control-group">
+                        <label for="maxFrames">最大抽帧数</label>
+                        <input type="range" id="maxFrames" min="5" max="50" value="20">
+                        <span id="maxFramesValue">20帧</span>
+                    </div>
+                    
+                    <div class="video-info">
+                        <p>视频时长: <span id="videoDuration">-</span></p>
+                        <p>预计抽帧数: <span id="estimatedFrames">-</span></p>
+                    </div>
+                </div>
+                
+                <!-- 预览区域 -->
+                <div class="frame-preview-section">
+                    <h4>抽帧预览</h4>
+                    <div class="frame-preview-container">
+                        <div class="frame-preview-grid" id="framePreviewGrid">
+                            <!-- 预览帧将动态添加到这里 -->
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 进度指示器 -->
+                <div class="extraction-progress" id="extractionProgress" style="display: none;">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="extractionProgressFill"></div>
+                    </div>
+                    <span class="progress-text" id="extractionProgressText">正在抽帧... 0%</span>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button id="previewFramesBtn" class="btn btn-secondary">🔍 预览抽帧</button>
+                <button id="extractFramesBtn" class="btn btn-success" disabled>✨ 确认抽帧</button>
+                <button id="cancelExtractionBtn" class="btn btn-warning">❌ 取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 简化预览容器 -->
+    <div id="filePreview" class="file-preview-tooltip" style="display: none;">
+        <img id="previewImage" alt="文件预览">
+    </div>
+
+    <!-- 引入脚本 -->
+    <script src="js/gif.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
