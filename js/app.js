@@ -49,7 +49,25 @@ class DynamicEmojiGenerator {
         this.isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
         this.hasUserInteraction = false;
         
+        // 视频格式兼容性检测
+        this.videoFormats = this.detectVideoSupport();
+        
         this.init();
+    }
+    
+    // 检测浏览器支持的视频格式
+    detectVideoSupport() {
+        const video = document.createElement('video');
+        const formats = {
+            mp4: video.canPlayType('video/mp4'),
+            webm: video.canPlayType('video/webm'),
+            mov: video.canPlayType('video/quicktime'),
+            avi: video.canPlayType('video/avi'),
+            m4v: video.canPlayType('video/mp4')
+        };
+        
+        console.log('浏览器视频格式支持:', formats);
+        return formats;
     }
     
     init() {
@@ -260,14 +278,43 @@ class DynamicEmojiGenerator {
     
     processFiles(files) {
         const validFiles = files.filter(file => {
+            // 基于MIME类型的验证
             const isImage = file.type.startsWith('image/');
             const isVideo = file.type.startsWith('video/');
-            return isImage || isVideo;
+            
+            // 基于文件扩展名的备用验证
+            const fileName = file.name.toLowerCase();
+            const videoExtensions = ['.mp4', '.webm', '.mov', '.avi', '.m4v', '.3gp', '.mkv'];
+            const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+            
+            const hasVideoExtension = videoExtensions.some(ext => fileName.endsWith(ext));
+            const hasImageExtension = imageExtensions.some(ext => fileName.endsWith(ext));
+            
+            // 特殊处理MOV文件（可能被识别为video/quicktime）
+            const isQuickTime = file.type === 'video/quicktime';
+            
+            return isImage || isVideo || hasVideoExtension || hasImageExtension || isQuickTime;
         });
         
         if (validFiles.length === 0) {
             alert('请选择有效的图片或视频文件');
             return;
+        }
+        
+        // 检查MOV格式的兼容性
+        const movFiles = validFiles.filter(file => 
+            file.name.toLowerCase().endsWith('.mov') || file.type === 'video/quicktime'
+        );
+        
+        if (movFiles.length > 0 && this.videoFormats.mov === '') {
+            const fileNames = movFiles.map(f => f.name).join(', ');
+            const message = this.isMobile ? 
+                `检测到MOV格式文件(${fileNames})，在当前浏览器中可能无法播放。建议使用MP4格式或在Safari中打开。` :
+                `检测到MOV格式文件(${fileNames})，建议转换为MP4格式以获得更好的兼容性。`;
+            
+            if (!confirm(`⚠️ ${message}\n\n是否继续上传？`)) {
+                return;
+            }
         }
         
         // 大量文件提示
@@ -296,13 +343,27 @@ class DynamicEmojiGenerator {
     }
     
     addFile(file) {
+        // 更智能的文件类型判断
+        let fileType = 'video';
+        if (file.type.startsWith('image/')) {
+            fileType = 'image';
+        } else if (file.type.startsWith('video/') || file.type === 'video/quicktime') {
+            fileType = 'video';
+        } else {
+            // 基于扩展名的备用判断
+            const fileName = file.name.toLowerCase();
+            const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+            fileType = imageExtensions.some(ext => fileName.endsWith(ext)) ? 'image' : 'video';
+        }
+        
         const fileObj = {
             file: file,
             name: file.name,
             size: this.formatFileSize(file.size),
-            type: file.type.startsWith('image/') ? 'image' : 'video',
+            type: fileType,
             url: URL.createObjectURL(file),
-            element: null
+            element: null,
+            mimeType: file.type || 'unknown' // 保存原始MIME类型用于调试
         };
         
         this.uploadedFiles.push(fileObj);
@@ -376,6 +437,15 @@ class DynamicEmojiGenerator {
                     fileObj.videoWidth = video.videoWidth;
                     fileObj.videoHeight = video.videoHeight;
                     fileObj.element = video;
+                    
+                    console.log(`视频元数据加载成功: ${fileObj.name}`, {
+                        duration: video.duration,
+                        dimensions: `${video.videoWidth}x${video.videoHeight}`,
+                        readyState: video.readyState,
+                        networkState: video.networkState,
+                        currentSrc: video.currentSrc
+                    });
+                    
                     this.updateFileList();
                 };
                 
@@ -388,10 +458,23 @@ class DynamicEmojiGenerator {
                 
                 video.onerror = (error) => {
                     console.error('视频加载失败:', fileObj.name, error);
+                    console.log('文件MIME类型:', fileObj.mimeType);
+                    console.log('设备信息:', {
+                        isMobile: this.isMobile,
+                        isIOS: this.isIOS,
+                        userAgent: navigator.userAgent
+                    });
                     
                     // 移动端特定错误提示
                     if (this.isMobile) {
-                        if (this.isIOS) {
+                        const fileName = fileObj.name.toLowerCase();
+                        if (fileName.endsWith('.mov')) {
+                            if (this.isIOS) {
+                                fileObj.error = 'MOV格式可能需要Safari浏览器支持';
+                            } else {
+                                fileObj.error = 'MOV格式在此浏览器中不支持，建议转换为MP4';
+                            }
+                        } else if (this.isIOS) {
                             fileObj.error = '加载失败（iOS可能需要用户交互或检查视频格式）';
                         } else {
                             fileObj.error = '加载失败（请检查视频格式是否支持）';
