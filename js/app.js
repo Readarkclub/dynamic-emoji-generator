@@ -1,3 +1,94 @@
+// 文字层管理器类
+class TextLayerManager {
+    constructor(app) {
+        this.app = app;
+        this.layers = [];
+        this.currentLayerId = null;
+        this.nextId = 1;
+        
+        // 创建默认文字层
+        this.addLayer('', 150, 150);
+    }
+    
+    addLayer(text = '', x = 150, y = 150) {
+        const newLayer = {
+            id: this.nextId++,
+            name: `文字层 ${this.layers.length + 1}`,
+            text: text,
+            x: x,
+            y: y + (this.layers.length * 50), // 避免重叠
+            fontSize: 24,
+            color: '#ffffff',
+            fontFamily: 'Arial, sans-serif',
+            fontWeight: 'normal',
+            animationType: 'none',
+            visible: true,
+            locked: false,
+            zIndex: this.layers.length + 1
+        };
+        
+        this.layers.push(newLayer);
+        this.setCurrentLayer(newLayer.id);
+        return newLayer;
+    }
+    
+    removeLayer(layerId) {
+        if (this.layers.length <= 1) return false; // 保持至少一层
+        
+        this.layers = this.layers.filter(layer => layer.id !== layerId);
+        
+        // 如果删除的是当前层，切换到第一层
+        if (this.currentLayerId === layerId) {
+            this.setCurrentLayer(this.layers[0].id);
+        }
+        
+        // 重新编号图层名称
+        this.layers.forEach((layer, index) => {
+            layer.name = `文字层 ${index + 1}`;
+            layer.zIndex = index + 1;
+        });
+        
+        return true;
+    }
+    
+    setCurrentLayer(layerId) {
+        this.currentLayerId = layerId;
+    }
+    
+    getCurrentLayer() {
+        return this.layers.find(layer => layer.id === this.currentLayerId);
+    }
+    
+    getLayer(layerId) {
+        return this.layers.find(layer => layer.id === layerId);
+    }
+    
+    updateCurrentLayer(properties) {
+        const currentLayer = this.getCurrentLayer();
+        if (currentLayer) {
+            Object.assign(currentLayer, properties);
+        }
+    }
+    
+    toggleLayerVisibility(layerId) {
+        const layer = this.getLayer(layerId);
+        if (layer) {
+            layer.visible = !layer.visible;
+        }
+    }
+    
+    toggleLayerLock(layerId) {
+        const layer = this.getLayer(layerId);
+        if (layer) {
+            layer.locked = !layer.locked;
+        }
+    }
+    
+    getVisibleLayers() {
+        return this.layers.filter(layer => layer.visible);
+    }
+}
+
 class DynamicEmojiGenerator {
     constructor() {
         this.canvas = document.getElementById('previewCanvas');
@@ -15,26 +106,34 @@ class DynamicEmojiGenerator {
         this.currentSpeedIndex = 0; // 当前速度索引
         this.switchInterval = 3000; // 基础媒体切换间隔(毫秒)
         
-        // 文字动画相关
+        // 初始化文字层管理器
+        this.textLayerManager = new TextLayerManager(this);
+        
+        // 每层独立的动画状态
+        this.layerAnimationStates = {};
+        
+        // 保持向后兼容的textSettings（指向当前层）
         this.textSettings = {
-            text: '',
-            x: 200,
-            y: 200,
-            fontSize: 24,
-            color: '#ffffff',
-            fontFamily: 'Arial, sans-serif',
-            fontWeight: 'normal',
-            animationType: 'none'
+            get text() { return this.textLayerManager.getCurrentLayer()?.text || ''; },
+            set text(value) { this.textLayerManager.updateCurrentLayer({ text: value }); },
+            get x() { return this.textLayerManager.getCurrentLayer()?.x || 150; },
+            set x(value) { this.textLayerManager.updateCurrentLayer({ x: value }); },
+            get y() { return this.textLayerManager.getCurrentLayer()?.y || 150; },
+            set y(value) { this.textLayerManager.updateCurrentLayer({ y: value }); },
+            get fontSize() { return this.textLayerManager.getCurrentLayer()?.fontSize || 24; },
+            set fontSize(value) { this.textLayerManager.updateCurrentLayer({ fontSize: value }); },
+            get color() { return this.textLayerManager.getCurrentLayer()?.color || '#ffffff'; },
+            set color(value) { this.textLayerManager.updateCurrentLayer({ color: value }); },
+            get fontFamily() { return this.textLayerManager.getCurrentLayer()?.fontFamily || 'Arial, sans-serif'; },
+            set fontFamily(value) { this.textLayerManager.updateCurrentLayer({ fontFamily: value }); },
+            get fontWeight() { return this.textLayerManager.getCurrentLayer()?.fontWeight || 'normal'; },
+            set fontWeight(value) { this.textLayerManager.updateCurrentLayer({ fontWeight: value }); },
+            get animationType() { return this.textLayerManager.getCurrentLayer()?.animationType || 'none'; },
+            set animationType(value) { this.textLayerManager.updateCurrentLayer({ animationType: value }); }
         };
         
-        this.animationState = {
-            time: 0,
-            bounceOffset: 0,
-            fadeOpacity: 1,
-            rotateAngle: 0,
-            shakeOffset: 0,
-            typewriterIndex: 0
-        };
+        // 初始化第一层的动画状态
+        this.initLayerAnimationState(1);
         
         // 预览相关状态
         this.previewState = {
@@ -51,6 +150,16 @@ class DynamicEmojiGenerator {
         
         // 视频格式兼容性检测
         this.videoFormats = this.detectVideoSupport();
+        
+        // 初始化动画状态 (为向后兼容保留)
+        this.animationState = {
+            time: 0,
+            bounceOffset: 0,
+            fadeOpacity: 1,
+            rotateAngle: 0,
+            shakeOffset: 0,
+            typewriterIndex: 0
+        };
         
         this.init();
     }
@@ -109,16 +218,6 @@ class DynamicEmojiGenerator {
             } else {
                 // 如果未播放，开始播放
                 this.play();
-                
-                // 检查是否有需要播放的视频
-                this.uploadedFiles.forEach(file => {
-                    if (file.type === 'video' && file.pendingPlay && file.element) {
-                        file.element.play().catch(err => {
-                            console.log('尝试播放待处理视频失败:', err);
-                        });
-                        file.pendingPlay = false;
-                    }
-                });
             }
         });
         document.getElementById('pauseBtn').addEventListener('click', () => {
@@ -152,6 +251,9 @@ class DynamicEmojiGenerator {
         // 为文件列表添加拖拽排序事件
         this.setupDragAndDrop();
         
+        // 文字层管理事件监听器
+        this.setupTextLayerEventListeners();
+        
         // 添加滚动监听，优化预览框位置（带节流）
         this.scrollHandler = this.throttle(() => {
             this.updatePreviewPositionOnScroll();
@@ -163,52 +265,113 @@ class DynamicEmojiGenerator {
     setupDragAndDrop() {
         const fileList = document.getElementById('fileList');
         
+        // 创建节流版本的拖拽处理函数
+        const throttledDragOver = this.throttle((e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            
+            const afterElement = this.getDragAfterElement(fileList, e.clientX, e.clientY);
+            const dragging = fileList.querySelector('.dragging');
+            
+            if (dragging) {
+                // 清除之前的拖拽指示器
+                fileList.querySelectorAll('.drag-indicator').forEach(indicator => {
+                    indicator.classList.remove('drag-indicator');
+                });
+                
+                // 添加新的拖拽指示器
+                if (afterElement) {
+                    afterElement.classList.add('drag-indicator');
+                    fileList.insertBefore(dragging, afterElement);
+                } else {
+                    // 拖拽到末尾
+                    const lastElement = fileList.lastElementChild;
+                    if (lastElement && lastElement !== dragging) {
+                        lastElement.classList.add('drag-indicator');
+                    }
+                    fileList.appendChild(dragging);
+                }
+            }
+        }, 16); // 约60fps的更新频率
+        
         // 使用事件委托处理拖拽事件
         fileList.addEventListener('dragstart', (e) => {
             if (e.target.classList.contains('file-item')) {
                 this.draggedIndex = Array.from(fileList.children).indexOf(e.target);
                 e.target.classList.add('dragging');
                 e.dataTransfer.effectAllowed = 'move';
+                console.log('拖拽开始，文件索引:', this.draggedIndex);
             }
         });
         
         fileList.addEventListener('dragend', (e) => {
             if (e.target.classList.contains('file-item')) {
                 e.target.classList.remove('dragging');
+                
+                // 清除所有拖拽指示器
+                fileList.querySelectorAll('.drag-indicator').forEach(indicator => {
+                    indicator.classList.remove('drag-indicator');
+                });
             }
         });
         
-        fileList.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            const afterElement = this.getDragAfterElement(fileList, e.clientY);
-            const dragging = fileList.querySelector('.dragging');
-            
-            if (afterElement == null) {
-                fileList.appendChild(dragging);
-            } else {
-                fileList.insertBefore(dragging, afterElement);
-            }
-        });
+        fileList.addEventListener('dragover', throttledDragOver);
         
         fileList.addEventListener('drop', (e) => {
             e.preventDefault();
+            console.log('拖拽结束，更新文件顺序');
+            
+            // 清除所有拖拽指示器
+            const fileList = document.getElementById('fileList');
+            fileList.querySelectorAll('.drag-indicator').forEach(indicator => {
+                indicator.classList.remove('drag-indicator');
+            });
+            
             this.updateFileOrder();
         });
     }
     
-    getDragAfterElement(container, y) {
+    // 网格布局的拖拽位置计算 - 使用二维坐标
+    getDragAfterElement(container, x, y) {
         const draggableElements = [...container.querySelectorAll('.file-item:not(.dragging)')];
         
-        return draggableElements.reduce((closest, child) => {
-            const box = child.getBoundingClientRect();
-            const offset = y - box.top - box.height / 2;
+        if (draggableElements.length === 0) {
+            return null;
+        }
+        
+        let closestElement = null;
+        let minDistance = Infinity;
+        let insertBefore = false;
+        
+        // 找到距离鼠标位置最近的元素
+        draggableElements.forEach(element => {
+            const rect = element.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
             
-            if (offset < 0 && offset > closest.offset) {
-                return { offset: offset, element: child };
-            } else {
-                return closest;
+            // 计算欧几里得距离
+            const distance = Math.sqrt(Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2));
+            
+            if (distance < minDistance) {
+                minDistance = distance;
+                closestElement = element;
+                
+                // 判断应该插入到前面还是后面
+                // 在网格中，主要看水平位置，其次看垂直位置
+                if (x < centerX) {
+                    insertBefore = true;
+                } else if (x > centerX) {
+                    insertBefore = false;
+                } else {
+                    // 水平位置相同时，看垂直位置
+                    insertBefore = y < centerY;
+                }
             }
-        }, { offset: Number.NEGATIVE_INFINITY }).element;
+        });
+        
+        // 如果应该插入到最近元素之前，返回该元素
+        // 否则返回该元素的下一个兄弟元素（即插入到其后面）
+        return insertBefore ? closestElement : closestElement.nextElementSibling;
     }
     
     updateFileOrder() {
@@ -236,6 +399,126 @@ class DynamicEmojiGenerator {
     }
     
     // 移除单独的handleFileSelect方法，直接在setupEventListeners中处理
+    
+    setupTextLayerEventListeners() {
+        // 添加文字层按钮
+        document.getElementById('addTextLayer').addEventListener('click', () => {
+            this.textLayerManager.addLayer();
+            this.updateTextLayersList();
+            this.updateCurrentLayerEditor();
+            this.initLayerAnimationState(this.textLayerManager.currentLayerId);
+        });
+        
+        // 更新初始化
+        this.updateTextLayersList();
+        this.updateCurrentLayerEditor();
+    }
+    
+    
+    updateTextLayersList() {
+        const container = document.getElementById('textLayersList');
+        container.innerHTML = '';
+        
+        this.textLayerManager.layers.forEach((layer) => {
+            const layerItem = document.createElement('div');
+            layerItem.className = `layer-item ${layer.id === this.textLayerManager.currentLayerId ? 'active' : ''}`;
+            layerItem.dataset.layerId = layer.id;
+            
+            layerItem.innerHTML = `
+                <div class="layer-info" onclick="generator.selectTextLayer(${layer.id})">
+                    <div class="layer-name">${layer.name}</div>
+                    <div class="layer-preview">${layer.text || '(空文字)'}</div>
+                </div>
+                <div class="layer-controls">
+                    <button class="layer-control-btn visibility-btn ${layer.visible ? 'active' : ''}" 
+                            onclick="generator.toggleLayerVisibility(${layer.id})" 
+                            title="${layer.visible ? '隐藏' : '显示'}">
+                        ${layer.visible ? '👁️' : '🙈'}
+                    </button>
+                    <button class="layer-control-btn lock-btn ${layer.locked ? 'active' : ''}" 
+                            onclick="generator.toggleLayerLock(${layer.id})" 
+                            title="${layer.locked ? '解锁' : '锁定'}">
+                        ${layer.locked ? '🔒' : '🔓'}
+                    </button>
+                    ${this.textLayerManager.layers.length > 1 ? 
+                        `<button class="layer-control-btn delete-btn" 
+                                onclick="generator.deleteTextLayer(${layer.id})" 
+                                title="删除">🗑️</button>` : ''}
+                </div>
+            `;
+            
+            container.appendChild(layerItem);
+        });
+    }
+    
+    selectTextLayer(layerId) {
+        this.textLayerManager.setCurrentLayer(layerId);
+        this.updateTextLayersList();
+        this.updateCurrentLayerEditor();
+    }
+    
+    toggleLayerVisibility(layerId) {
+        this.textLayerManager.toggleLayerVisibility(layerId);
+        this.updateTextLayersList();
+    }
+    
+    toggleLayerLock(layerId) {
+        this.textLayerManager.toggleLayerLock(layerId);
+        this.updateTextLayersList();
+    }
+    
+    deleteTextLayer(layerId) {
+        if (this.textLayerManager.layers.length <= 1) {
+            alert('至少需要保留一个文字层');
+            return;
+        }
+        
+        if (confirm('确认删除此文字层？')) {
+            // 清理动画状态
+            delete this.layerAnimationStates[layerId];
+            
+            this.textLayerManager.removeLayer(layerId);
+            this.updateTextLayersList();
+            this.updateCurrentLayerEditor();
+        }
+    }
+    
+    updateCurrentLayerEditor() {
+        const currentLayer = this.textLayerManager.getCurrentLayer();
+        if (!currentLayer) return;
+        
+        // 更新当前层名称显示
+        document.getElementById('currentLayerName').textContent = `(${currentLayer.name})`;
+        
+        // 更新控制面板的值
+        document.getElementById('textInput').value = currentLayer.text;
+        document.getElementById('fontSize').value = currentLayer.fontSize;
+        document.getElementById('fontSizeValue').textContent = currentLayer.fontSize + 'px';
+        document.getElementById('textColor').value = currentLayer.color;
+        document.getElementById('fontWeight').value = currentLayer.fontWeight;
+        document.getElementById('animationType').value = currentLayer.animationType;
+        document.getElementById('textX').value = currentLayer.x;
+        document.getElementById('textY').value = currentLayer.y;
+        
+        // 更新字体选择器
+        this.updateFontSelector(currentLayer.fontFamily);
+    }
+    
+    
+    updateFontSelector(fontFamily) {
+        const fontOptions = document.querySelectorAll('.font-option');
+        fontOptions.forEach(option => {
+            option.classList.remove('selected');
+            if (option.dataset.value === fontFamily) {
+                option.classList.add('selected');
+                
+                // 更新显示的字体名称
+                const selectedFont = document.querySelector('.selected-font');
+                selectedFont.textContent = option.textContent;
+                selectedFont.style.fontFamily = fontFamily;
+            }
+        });
+    }
     
     setupCanvas() {
         this.canvas.width = 300;
@@ -333,12 +616,31 @@ class DynamicEmojiGenerator {
         
         // 如果之前没有文件，现在有了文件，确保自动播放
         if (!hadFilesBeforeProcessing && this.uploadedFiles.length > 0) {
-            // 延时确保文件元素已创建
-            setTimeout(() => {
+            // 使用Promise等待文件元素创建完成后自动播放
+            Promise.all(
+                this.uploadedFiles.map(fileObj => {
+                    if (fileObj.element) {
+                        return Promise.resolve();
+                    }
+                    // 等待元素创建
+                    return new Promise(resolve => {
+                        const checkElement = () => {
+                            if (fileObj.element) {
+                                resolve();
+                            } else {
+                                setTimeout(checkElement, 10);
+                            }
+                        };
+                        checkElement();
+                    });
+                })
+            ).then(() => {
+                // 确保所有文件元素都已创建后再开始播放
                 if (!this.isPlaying && this.uploadedFiles.length > 0) {
+                    console.log('文件上传完成，自动开始播放');
                     this.play();
                 }
-            }, 100);
+            });
         }
     }
     
@@ -374,9 +676,12 @@ class DynamicEmojiGenerator {
         // 创建媒体元素并等待加载
         this.createMediaElement(fileObj).then(() => {
             if (this.uploadedFiles.length === 1) {
-                this.currentMediaIndex = Math.max(0, this.uploadedFiles.length - 1);
+                // 第一个文件添加后立即开始播放
+                this.currentMediaIndex = 0;
+                console.log('第一个文件加载完成，立即开始播放');
                 this.play();
             } else {
+                // 多个文件时只渲染当前状态
                 this.render();
             }
         });
@@ -398,8 +703,15 @@ class DynamicEmojiGenerator {
                         console.log(`抽取帧加载成功: ${fileObj.name} (${img.naturalWidth}x${img.naturalHeight})`);
                     }
                     
-                    this.updateFileList(); // 更新显示
-                    resolve();
+                    // 生成缩略图
+                    this.generateThumbnail(fileObj).then((thumbnail) => {
+                        if (thumbnail) {
+                            fileObj.thumbnail = thumbnail;
+                            console.log(`图片缩略图生成完成: ${fileObj.name}`);
+                        }
+                        this.updateFileList(); // 更新显示
+                        resolve();
+                    });
                 };
                 
                 img.onerror = (error) => {
@@ -452,8 +764,26 @@ class DynamicEmojiGenerator {
                 video.onloadeddata = () => {
                     // 视频数据加载完成，可以进行抽帧操作
                     fileObj.readyForExtraction = true;
-                    this.updateFileList();
-                    resolve();
+                    
+                    // 生成视频缩略图
+                    this.generateVideoThumbnail(fileObj).then((thumbnail) => {
+                        if (thumbnail) {
+                            fileObj.thumbnail = thumbnail;
+                            console.log(`视频缩略图生成完成: ${fileObj.name}`);
+                        }
+                        this.updateFileList();
+                        
+                        // 移动端优化：视频加载完成后立即尝试播放（如果当前正在播放状态）
+                        if (this.isPlaying && this.uploadedFiles[this.currentMediaIndex] === fileObj) {
+                            this.attemptVideoPlay(video, fileObj).then((success) => {
+                                if (success) {
+                                    console.log(`视频加载完成后自动播放: ${fileObj.name}`);
+                                }
+                            });
+                        }
+                        
+                        resolve();
+                    });
                 };
                 
                 video.onerror = (error) => {
@@ -524,14 +854,16 @@ class DynamicEmojiGenerator {
             let previewContent, statusText, extractBtn = '';
             
             if (fileObj.error) {
-                previewContent = '❌';
+                previewContent = '<div class="thumbnail-error">❌</div>';
                 statusText = fileObj.error;
             } else if (!fileObj.element) {
-                previewContent = '<div class="loading-spinner">⏳</div>';
+                previewContent = '<div class="thumbnail-loading">⏳</div>';
                 statusText = '加载中...';
-            } else {
+            } else if (fileObj.thumbnail) {
+                // 显示真实缩略图
+                previewContent = `<img src="${fileObj.thumbnail}" alt="缩略图" class="thumbnail-img">`;
+                
                 if (fileObj.type === 'image') {
-                    previewContent = fileObj.isExtractedFrame ? '🎬→🖼️' : '🖼️';
                     // 如果是抽取帧，显示额外信息
                     if (fileObj.isExtractedFrame) {
                         statusText = `抽取帧 (${fileObj.frameTime?.toFixed(1)}s)`;
@@ -542,7 +874,6 @@ class DynamicEmojiGenerator {
                         }
                     }
                 } else {
-                    previewContent = '🎬';
                     // 为视频添加抽帧按钮，只有在视频数据准备好时才启用
                     const isDisabled = !fileObj.readyForExtraction ? 'disabled' : '';
                     const buttonTitle = fileObj.readyForExtraction ? '视频抽帧' : '视频加载中...';
@@ -553,28 +884,52 @@ class DynamicEmojiGenerator {
                         statusText = `${fileObj.duration.toFixed(1)}s - ${fileObj.videoWidth}x${fileObj.videoHeight}`;
                     }
                 }
+            } else {
+                // 回退到表情符号（缩略图生成中或失败）
+                if (fileObj.type === 'image') {
+                    previewContent = `<div class="thumbnail-fallback">${fileObj.isExtractedFrame ? '🎬→🖼️' : '🖼️'}</div>`;
+                    if (fileObj.isExtractedFrame) {
+                        statusText = `抽取帧 (${fileObj.frameTime?.toFixed(1)}s)`;
+                        if (!fileObj.ready && !fileObj.error) {
+                            statusText += ' - 加载中...';
+                        } else if (fileObj.ready) {
+                            statusText += ' - 就绪';
+                        }
+                    }
+                } else {
+                    previewContent = '<div class="thumbnail-fallback">🎬</div>';
+                    const isDisabled = !fileObj.readyForExtraction ? 'disabled' : '';
+                    const buttonTitle = fileObj.readyForExtraction ? '视频抽帧' : '视频加载中...';
+                    extractBtn = `<button class="file-extract-btn" ${isDisabled} onclick="generator.showFrameExtractionModal(${index})" title="${buttonTitle}">抽帧</button>`;
+                    
+                    if (fileObj.duration && fileObj.videoWidth && fileObj.videoHeight) {
+                        statusText = `${fileObj.duration.toFixed(1)}s - ${fileObj.videoWidth}x${fileObj.videoHeight}`;
+                    }
+                }
             }
             
+            // 创建详细的tooltip信息
+            const tooltipInfo = [
+                `${index + 1}. ${fileObj.name}`,
+                `大小: ${fileObj.size}`,
+                statusText ? `状态: ${statusText}` : ''
+            ].filter(info => info).join('\n');
+            
             fileItem.innerHTML = `
-                <div class="file-drag-handle" title="拖拽调整顺序">⋮⋮</div>
-                <div class="file-preview" style="background: #ddd; display: flex; align-items: center; justify-content: center; color: #666;">
+                <div class="file-drag-handle" title="拖拽调整顺序">≡</div>
+                <div class="file-preview" title="${tooltipInfo}">
                     ${previewContent}
                 </div>
                 <div class="file-info">
-                    <div class="file-name" data-file-index="${index}">${index + 1}. ${fileObj.name}</div>
-                    <div class="file-size">${fileObj.size}</div>
                     ${statusText ? `<div class="file-status">${statusText}</div>` : ''}
                 </div>
                 <div class="file-actions">
                     ${extractBtn}
-                    <button class="file-remove" onclick="generator.removeFile(${index})">删除</button>
+                    <button class="file-remove" onclick="generator.removeFile(${index})" title="删除文件">删除</button>
                 </div>
             `;
             fileList.appendChild(fileItem);
         });
-        
-        // 为文件名添加预览事件监听器
-        this.setupFilePreviewListeners();
     }
     
     removeFile(index) {
@@ -647,12 +1002,10 @@ class DynamicEmojiGenerator {
     play() {
         if (this.uploadedFiles.length === 0) return;
         
-        // 移动端检测：如果是移动端且没有用户交互，提示用户
+        // 移动端优化：信任用户交互标志，移除过度保守的检测
         if (this.isMobile && !this.hasUserInteraction) {
-            console.warn('移动端需要用户交互才能播放视频');
-            // 显示提示，但仍尝试播放（图片可以正常播放）
-            alert('请点击播放按钮开始播放视频内容');
-            this.hasUserInteraction = true; // 标记已有交互
+            console.log('移动端自动播放，标记用户交互');
+            this.hasUserInteraction = true; // 标记用户交互，允许视频播放
         }
         
         // 检查文件有效性
@@ -671,6 +1024,53 @@ class DynamicEmojiGenerator {
         // 统一播放逻辑：支持视频+图片混合播放
         this.startPlayback();
         this.animate();
+    }
+    
+    // 统一的视频播放尝试方法 - 处理移动端播放限制
+    attemptVideoPlay(videoElement, fileObj) {
+        if (!videoElement || !fileObj || fileObj.type !== 'video') {
+            return Promise.resolve();
+        }
+        
+        return new Promise((resolve) => {
+            const playPromise = videoElement.play();
+            
+            if (playPromise !== undefined) {
+                playPromise.then(() => {
+                    console.log(`视频播放成功: ${fileObj.name}`);
+                    fileObj.pendingPlay = false;
+                    resolve(true);
+                }).catch((error) => {
+                    console.warn(`视频播放失败: ${fileObj.name}`, error);
+                    
+                    // 移动端特殊处理
+                    if (this.isMobile && error.name === 'NotAllowedError') {
+                        console.log('移动端视频需要用户交互，标记为待播放');
+                        fileObj.pendingPlay = true;
+                        
+                        // 如果已有用户交互，立即重试
+                        if (this.hasUserInteraction) {
+                            setTimeout(() => {
+                                videoElement.play().catch(() => {
+                                    console.log('重试播放仍失败，等待下次用户交互');
+                                });
+                            }, 100);
+                        }
+                    }
+                    resolve(false);
+                });
+            } else {
+                // 旧浏览器不返回Promise
+                try {
+                    videoElement.play();
+                    console.log(`视频播放成功(旧浏览器): ${fileObj.name}`);
+                    resolve(true);
+                } catch (error) {
+                    console.warn(`视频播放失败(旧浏览器): ${fileObj.name}`, error);
+                    resolve(false);
+                }
+            }
+        });
     }
     
     // 获取所有有效的文件（已加载且有element的文件）
@@ -705,15 +1105,19 @@ class DynamicEmojiGenerator {
         const currentFile = this.uploadedFiles[this.currentMediaIndex];
         if (!currentFile || !currentFile.element) return;
         
-        // 如果是视频，启动视频播放
+        // 如果是视频，使用统一的播放方法
         if (currentFile.type === 'video') {
-            currentFile.element.play().catch(err => {
-                console.warn('视频播放失败:', err);
+            this.attemptVideoPlay(currentFile.element, currentFile).then((success) => {
+                if (success) {
+                    console.log(`开始播放: ${currentFile.name} (${currentFile.type})`);
+                } else {
+                    console.log(`视频播放失败，但继续渲染: ${currentFile.name}`);
+                }
             });
+        } else {
+            // 图片和抽取帧不需要特殊处理，通过animate方法统一管理
+            console.log(`开始播放: ${currentFile.name} (${currentFile.type})`);
         }
-        // 图片和抽取帧不需要特殊处理，通过animate方法统一管理
-        
-        console.log(`开始播放: ${currentFile.name} (${currentFile.type})`);
     }
     
     pause() {
@@ -742,6 +1146,9 @@ class DynamicEmojiGenerator {
         this.currentTime += this.animationSpeed * speedMultiplier;
         this.animationState.time = this.currentTime;
         
+        // 更新所有文字层的动画状态
+        this.updateAllLayerAnimations(speedMultiplier);
+        
         // 智能媒体切换逻辑
         if (this.uploadedFiles.length > 1) {
             const oldIndex = this.currentMediaIndex;
@@ -755,6 +1162,76 @@ class DynamicEmojiGenerator {
         
         this.render();
         this.animationFrame = requestAnimationFrame(() => this.animate());
+    }
+    
+    // 更新所有文字层的动画状态
+    updateAllLayerAnimations(speedMultiplier) {
+        const time = this.currentTime;
+        
+        this.textLayerManager.layers.forEach(layer => {
+            if (!layer.visible) return;
+            
+            const animationState = this.getLayerAnimationState(layer.id);
+            
+            switch (layer.animationType) {
+                case 'bounce':
+                    animationState.bounceOffset = Math.sin(time * 4 * speedMultiplier) * 10;
+                    break;
+                    
+                case 'fade':
+                    animationState.fadeOpacity = (Math.sin(time * 3 * speedMultiplier) + 1) / 2;
+                    break;
+                    
+                case 'rotate':
+                    animationState.rotateAngle = time * 2 * speedMultiplier;
+                    break;
+                    
+                case 'shake':
+                    animationState.shakeOffset = Math.sin(time * 8 * speedMultiplier) * 5;
+                    break;
+                    
+                case 'typewriter':
+                    animationState.typewriterIndex = Math.floor(time * 3 * speedMultiplier) % (layer.text.length + 10);
+                    break;
+                    
+                // 高级动画效果
+                case 'slide':
+                    const slideProgress = (Math.sin(time * 2 * speedMultiplier) + 1) / 2;
+                    animationState.slideOffset = (slideProgress - 0.5) * 100;
+                    break;
+                    
+                case 'zoom':
+                    animationState.zoomScale = 0.8 + Math.sin(time * 4 * speedMultiplier) * 0.4;
+                    break;
+                    
+                case 'rainbow':
+                    animationState.rainbowHue = (time * 60 * speedMultiplier) % 360;
+                    break;
+                    
+                case 'wave':
+                    animationState.waveOffset = Math.sin(time * 3 * speedMultiplier) * 15;
+                    animationState.waveCharOffset = Math.sin(time * 5 * speedMultiplier) * 3;
+                    break;
+                    
+                case 'flip':
+                    animationState.flipAngle = time * 4 * speedMultiplier;
+                    break;
+                    
+                case 'elastic':
+                    animationState.elasticScale = 1 + Math.sin(time * 6 * speedMultiplier) * 0.3;
+                    break;
+                    
+                case 'glitch':
+                    animationState.glitchOffset = Math.random() * 4 - 2;
+                    animationState.glitchOpacity = 0.5 + Math.random() * 0.5;
+                    break;
+                    
+                case 'orbit':
+                    animationState.orbitAngle = time * 3 * speedMultiplier;
+                    animationState.orbitRadius = 20;
+                    break;
+            }
+        });
     }
     
     // 更新当前媒体索引
@@ -813,30 +1290,14 @@ class DynamicEmojiGenerator {
         
         // 启动新的媒体
         if (newFile.type === 'video') {
-            // 移动端视频播放优化
-            const playVideo = () => {
-                newFile.element.play().catch(err => {
-                    console.warn('视频切换播放失败:', err);
-                    
-                    // 移动端特殊处理
-                    if (this.isMobile && err.name === 'NotAllowedError') {
-                        console.log('移动端视频需要用户交互，等待下次用户交互');
-                        // 标记需要在下次用户交互时播放
-                        newFile.pendingPlay = true;
-                    }
-                });
-            };
-            
-            // 如果视频已完全加载，直接播放
-            if (newFile.fullyLoaded) {
-                playVideo();
-            } else {
-                // 等待视频加载完成再播放
-                console.log('等待视频加载完成...');
-                newFile.element.addEventListener('canplaythrough', () => {
-                    playVideo();
-                }, { once: true });
-            }
+            // 使用统一的视频播放方法，移除pendingPlay机制
+            this.attemptVideoPlay(newFile.element, newFile).then((success) => {
+                if (success) {
+                    console.log(`视频切换播放成功: ${newFile.name}`);
+                } else {
+                    console.log(`视频切换播放失败，但继续渲染: ${newFile.name}`);
+                }
+            });
         }
         
         console.log(`媒体切换: ${oldFile?.name || '未知'} → ${newFile.name} (${newFile.type})`);
@@ -887,26 +1348,178 @@ class DynamicEmojiGenerator {
     }
     
     drawText() {
-        if (!this.textSettings.text) return;
+        // 绘制所有可见的文字层
+        const visibleLayers = this.textLayerManager.getVisibleLayers();
         
-        this.ctx.save();
+        // 按zIndex排序，确保层级顺序正确
+        visibleLayers.sort((a, b) => a.zIndex - b.zIndex);
         
-        // 设置字体样式
-        this.ctx.font = `${this.textSettings.fontWeight} ${this.textSettings.fontSize}px ${this.textSettings.fontFamily}`;
-        this.ctx.fillStyle = this.textSettings.color;
-        this.ctx.strokeStyle = '#000';
-        this.ctx.lineWidth = 2;
-        this.ctx.textAlign = 'center';
-        this.ctx.textBaseline = 'middle';
+        visibleLayers.forEach(layer => {
+            if (!layer.text || layer.locked) return;
+            
+            this.ctx.save();
+            
+            // 设置字体样式
+            this.ctx.font = `${layer.fontWeight} ${layer.fontSize}px ${layer.fontFamily}`;
+            this.ctx.fillStyle = layer.color;
+            this.ctx.strokeStyle = '#000';
+            this.ctx.lineWidth = 2;
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            
+            // 应用层级专用的动画效果
+            this.applyLayerAnimation(layer);
+            
+            // 绘制多行文字
+            this.drawMultilineTextLayer(layer, this.getDisplayTextForLayer(layer));
+            
+            this.ctx.restore();
+        });
+    }
+    
+    // 多行文字渲染函数 (保持向后兼容)
+    drawMultilineText(text) {
+        const lines = text.split('\n');
+        const lineHeight = this.textSettings.fontSize * 1.3; // 行高为字体大小的1.3倍
+        const totalHeight = (lines.length - 1) * lineHeight;
+        const startY = this.textSettings.y - (totalHeight / 2);
         
-        // 应用动画效果
-        this.applyTextAnimation();
+        lines.forEach((line, index) => {
+            const yPos = startY + (index * lineHeight);
+            
+            // 如果行为空，跳过渲染但保持位置
+            if (line.trim() === '') return;
+            
+            // 绘制文字描边和填充
+            this.ctx.strokeText(line, this.textSettings.x, yPos);
+            this.ctx.fillText(line, this.textSettings.x, yPos);
+        });
+    }
+    
+    // 为特定文字层绘制多行文字
+    drawMultilineTextLayer(layer, text) {
+        const lines = text.split('\n');
+        const lineHeight = layer.fontSize * 1.3; // 行高为字体大小的1.3倍
+        const totalHeight = (lines.length - 1) * lineHeight;
+        const startY = layer.y - (totalHeight / 2);
         
-        // 绘制文字描边和填充
-        this.ctx.strokeText(this.getDisplayText(), this.textSettings.x, this.textSettings.y);
-        this.ctx.fillText(this.getDisplayText(), this.textSettings.x, this.textSettings.y);
+        lines.forEach((line, index) => {
+            const yPos = startY + (index * lineHeight);
+            
+            // 如果行为空，跳过渲染但保持位置
+            if (line.trim() === '') return;
+            
+            // 绘制文字描边和填充
+            this.ctx.strokeText(line, layer.x, yPos);
+            this.ctx.fillText(line, layer.x, yPos);
+        });
+    }
+    
+    // 获取指定层的显示文字（支持打字机动画等）
+    getDisplayTextForLayer(layer) {
+        if (layer.animationType === 'typewriter') {
+            const animationState = this.getLayerAnimationState(layer.id);
+            const index = Math.floor(animationState.typewriterIndex);
+            return layer.text.substring(0, index);
+        }
+        return layer.text;
+    }
+    
+    // 为指定文字层应用动画效果
+    applyLayerAnimation(layer) {
+        const animationState = this.getLayerAnimationState(layer.id);
         
-        this.ctx.restore();
+        switch (layer.animationType) {
+            case 'bounce':
+                this.ctx.translate(0, animationState.bounceOffset);
+                break;
+            case 'fade':
+                this.ctx.globalAlpha = animationState.fadeOpacity;
+                break;
+            case 'rotate':
+                const scale = 0.8 + Math.sin(animationState.rotateAngle) * 0.2;
+                this.ctx.translate(layer.x, layer.y);
+                this.ctx.rotate(animationState.rotateAngle);
+                this.ctx.scale(scale, scale);
+                this.ctx.translate(-layer.x, -layer.y);
+                break;
+            case 'shake':
+                this.ctx.translate(animationState.shakeOffset, 0);
+                break;
+            case 'slide':
+                this.ctx.translate(animationState.slideOffset || 0, 0);
+                break;
+            case 'zoom':
+                const zoomScale = animationState.zoomScale || 1;
+                this.ctx.translate(layer.x, layer.y);
+                this.ctx.scale(zoomScale, zoomScale);
+                this.ctx.translate(-layer.x, -layer.y);
+                break;
+            case 'rainbow':
+                const hue = animationState.rainbowHue || 0;
+                this.ctx.fillStyle = `hsl(${hue}, 80%, 60%)`;
+                break;
+            case 'wave':
+                this.ctx.translate(animationState.waveCharOffset || 0, animationState.waveOffset || 0);
+                break;
+            case 'flip':
+                this.ctx.translate(layer.x, layer.y);
+                this.ctx.scale(Math.cos(animationState.flipAngle || 0), 1);
+                this.ctx.translate(-layer.x, -layer.y);
+                break;
+            case 'elastic':
+                const elasticScale = animationState.elasticScale || 1;
+                this.ctx.translate(layer.x, layer.y);
+                this.ctx.scale(elasticScale, elasticScale);
+                this.ctx.translate(-layer.x, -layer.y);
+                break;
+            case 'glitch':
+                this.ctx.translate(animationState.glitchOffset || 0, 0);
+                this.ctx.globalAlpha = animationState.glitchOpacity || 1;
+                break;
+            case 'orbit':
+                const orbitX = Math.cos(animationState.orbitAngle || 0) * (animationState.orbitRadius || 20);
+                const orbitY = Math.sin(animationState.orbitAngle || 0) * (animationState.orbitRadius || 20);
+                this.ctx.translate(orbitX, orbitY);
+                break;
+        }
+    }
+    
+    // 在指定context上绘制多行文字（用于静态GIF生成等）
+    drawMultilineTextToContext(ctx, text) {
+        const lines = text.split('\n');
+        const lineHeight = this.textSettings.fontSize * 1.3;
+        const totalHeight = (lines.length - 1) * lineHeight;
+        const startY = this.textSettings.y - (totalHeight / 2);
+        
+        lines.forEach((line, index) => {
+            const yPos = startY + (index * lineHeight);
+            
+            if (line.trim() === '') return;
+            
+            ctx.strokeText(line, this.textSettings.x, yPos);
+            ctx.fillText(line, this.textSettings.x, yPos);
+        });
+    }
+    
+    // 初始化层级动画状态
+    initLayerAnimationState(layerId) {
+        this.layerAnimationStates[layerId] = {
+            time: 0,
+            bounceOffset: 0,
+            fadeOpacity: 1,
+            rotateAngle: 0,
+            shakeOffset: 0,
+            typewriterIndex: 0
+        };
+    }
+    
+    // 获取层级动画状态
+    getLayerAnimationState(layerId) {
+        if (!this.layerAnimationStates[layerId]) {
+            this.initLayerAnimationState(layerId);
+        }
+        return this.layerAnimationStates[layerId];
     }
     
     applyTextAnimation() {
@@ -1012,25 +1625,32 @@ class DynamicEmojiGenerator {
     }
     
     updateTextSettings() {
-        this.textSettings.text = document.getElementById('textInput').value;
-        this.textSettings.fontSize = parseInt(document.getElementById('fontSize').value);
-        this.textSettings.color = document.getElementById('textColor').value;
-        // 字体家族从自定义选择器获取，如果还在使用旧的select则保持兼容
-        if (this.selectedFontFamily) {
-            this.textSettings.fontFamily = this.selectedFontFamily;
-        } else {
-            const fontFamilyElement = document.getElementById('fontFamily');
-            if (fontFamilyElement) {
-                this.textSettings.fontFamily = fontFamilyElement.value;
+        // 更新当前文字层的设置
+        const currentLayer = this.textLayerManager.getCurrentLayer();
+        if (currentLayer) {
+            currentLayer.text = document.getElementById('textInput').value;
+            currentLayer.fontSize = parseInt(document.getElementById('fontSize').value);
+            currentLayer.color = document.getElementById('textColor').value;
+            // 字体家族从自定义选择器获取，如果还在使用旧的select则保持兼容
+            if (this.selectedFontFamily) {
+                currentLayer.fontFamily = this.selectedFontFamily;
+            } else {
+                const fontFamilyElement = document.getElementById('fontFamily');
+                if (fontFamilyElement) {
+                    currentLayer.fontFamily = fontFamilyElement.value;
+                }
             }
+            currentLayer.fontWeight = document.getElementById('fontWeight').value;
+            currentLayer.animationType = document.getElementById('animationType').value;
+            currentLayer.x = parseInt(document.getElementById('textX').value);
+            currentLayer.y = parseInt(document.getElementById('textY').value);
         }
-        this.textSettings.fontWeight = document.getElementById('fontWeight').value;
-        this.textSettings.animationType = document.getElementById('animationType').value;
-        this.textSettings.x = parseInt(document.getElementById('textX').value);
-        this.textSettings.y = parseInt(document.getElementById('textY').value);
         
         // 更新显示值
-        document.getElementById('fontSizeValue').textContent = this.textSettings.fontSize + 'px';
+        document.getElementById('fontSizeValue').textContent = document.getElementById('fontSize').value + 'px';
+        
+        // 更新文字层列表显示
+        this.updateTextLayersList();
         
         this.render();
     }
@@ -2708,9 +3328,10 @@ class DynamicEmojiGenerator {
         };
     }
 
-    // ======================== 简化预览系统 ========================
+    // 缩略图预览相关方法已移除，现在直接通过缩略图查看文件内容
     
-    showFilePreview(fileObj, event) {
+    // 清理所有资源（用于页面卸载时）
+    cleanup() {
         try {
             console.log(`[预览调试] 开始显示预览 - 文件: ${fileObj?.name}, 类型: ${fileObj?.type}, 索引: ${fileObj?.index || 'unknown'}`);
             
@@ -2844,121 +3465,8 @@ class DynamicEmojiGenerator {
         }
     }
     
-    setupFilePreviewListeners() {
-        console.log(`[事件调试] 开始设置预览事件监听器`);
-        
-        // 先清理之前的监听器（如果有的话）
-        this.cleanupFilePreviewListeners();
-        
-        const fileNames = document.querySelectorAll('.file-name[data-file-index]');
-        console.log(`[事件调试] 找到 ${fileNames.length} 个文件名元素`);
-        
-        // 存储事件处理函数引用，便于后续清理
-        this.previewEventHandlers = [];
-        
-        fileNames.forEach((fileName, index) => {
-            const fileIndex = parseInt(fileName.dataset.fileIndex);
-            const fileObj = this.uploadedFiles[fileIndex];
-            
-            console.log(`[事件调试] 处理第 ${index + 1} 个元素 - 文件索引: ${fileIndex}, 文件名: ${fileObj?.name || '未知'}, 类型: ${fileObj?.type || '未知'}`);
-            
-            if (!fileObj) {
-                console.warn(`[事件调试] 跳过无效文件对象 - 索引: ${fileIndex}`);
-                return;
-            }
-            
-            // 验证元素属性
-            const elementInfo = {
-                tagName: fileName.tagName,
-                className: fileName.className,
-                textContent: fileName.textContent?.substring(0, 50) + '...',
-                hasDataIndex: fileName.hasAttribute('data-file-index'),
-                dataIndex: fileName.dataset.fileIndex
-            };
-            console.log(`[事件调试] 元素信息:`, elementInfo);
-            
-            // 创建事件处理函数
-            const mouseEnterHandler = (event) => {
-                console.log(`[事件调试] mouseenter 触发 - 文件: ${fileObj.name}`);
-                this.showFilePreview(fileObj, event);
-            };
-            
-            const mouseLeaveHandler = () => {
-                console.log(`[事件调试] mouseleave 触发 - 文件: ${fileObj.name}`);
-                this.hideFilePreview();
-            };
-            
-            const mouseMoveHandler = (event) => {
-                const previewContainer = document.getElementById('filePreview');
-                if (previewContainer && previewContainer.style.display === 'block') {
-                    this.positionAndShowPreview(previewContainer, event);
-                }
-            };
-            
-            try {
-                // 添加事件监听器
-                fileName.addEventListener('mouseenter', mouseEnterHandler);
-                fileName.addEventListener('mouseleave', mouseLeaveHandler);
-                fileName.addEventListener('mousemove', mouseMoveHandler);
-                
-                console.log(`[事件调试] 成功绑定事件监听器 - 文件: ${fileObj.name}`);
-                
-                // 存储引用便于清理
-                this.previewEventHandlers.push({
-                    element: fileName,
-                    fileObj: fileObj, // 添加文件引用便于调试
-                    events: [
-                        { type: 'mouseenter', handler: mouseEnterHandler },
-                        { type: 'mouseleave', handler: mouseLeaveHandler },
-                        { type: 'mousemove', handler: mouseMoveHandler }
-                    ]
-                });
-            } catch (error) {
-                console.error(`[事件调试] 绑定事件失败 - 文件: ${fileObj.name}`, error);
-            }
-        });
-        
-        console.log(`[事件调试] 完成事件监听器设置 - 总计绑定: ${this.previewEventHandlers.length} 个文件`);
-        console.log(`[事件调试] 文件列表详情:`, this.uploadedFiles.map((f, i) => `${i}: ${f.name} (${f.type})`));
-    }
-    
-    cleanupFilePreviewListeners() {
-        // 清理预览相关的事件监听器
-        if (this.previewEventHandlers) {
-            this.previewEventHandlers.forEach(({ element, events }) => {
-                if (element && document.contains(element)) {
-                    events.forEach(({ type, handler }) => {
-                        try {
-                            element.removeEventListener(type, handler);
-                        } catch (error) {
-                            console.warn('移除事件监听器失败:', error);
-                        }
-                    });
-                }
-            });
-            this.previewEventHandlers = [];
-        }
-        
-        // 隐藏预览框
-        this.hideFilePreview();
-        
-        // 清理节流定时器
-        if (this.previewState?.scrollThrottleTimer) {
-            clearTimeout(this.previewState.scrollThrottleTimer);
-            this.previewState.scrollThrottleTimer = null;
-        }
-    }
-    
     // 清理所有资源（用于页面卸载时）
     cleanup() {
-        // 清理预览相关
-        this.cleanupFilePreviewListeners();
-        
-        // 清理滚动监听器
-        if (this.scrollHandler) {
-            window.removeEventListener('scroll', this.scrollHandler);
-            this.scrollHandler = null;
-        }
         
         // 清理媒体资源
         this.uploadedFiles.forEach(fileObj => {
@@ -3010,8 +3518,8 @@ class DynamicEmojiGenerator {
             canvas.height = 300;
             const ctx = canvas.getContext('2d');
             
-            // 只生成一帧静态图像
-            this.renderToCanvas(ctx);
+            // 只生成一帧静态图像 - 手动渲染到指定canvas
+            this.renderCurrentFrameToCanvas(ctx);
             const imageData = ctx.getImageData(0, 0, 300, 300);
             frames.push(imageData);
             
@@ -3042,6 +3550,216 @@ class DynamicEmojiGenerator {
             generateBtn.textContent = '生成GIF';
             progressContainer.style.display = 'none';
         }
+    }
+    
+    // 将当前帧渲染到指定的canvas上下文
+    renderCurrentFrameToCanvas(targetCtx) {
+        const currentFile = this.uploadedFiles[this.currentMediaIndex];
+        if (!currentFile || !currentFile.element) {
+            // 如果没有文件，绘制占位符
+            targetCtx.fillStyle = '#f8f9fa';
+            targetCtx.fillRect(0, 0, 300, 300);
+            return;
+        }
+        
+        // 清空画布
+        targetCtx.clearRect(0, 0, 300, 300);
+        
+        // 绘制背景媒体
+        const element = currentFile.element;
+        let sourceWidth, sourceHeight;
+        
+        if (currentFile.type === 'image' || currentFile.type === 'extracted_frame') {
+            sourceWidth = element.naturalWidth;
+            sourceHeight = element.naturalHeight;
+        } else {
+            sourceWidth = element.videoWidth;
+            sourceHeight = element.videoHeight;
+        }
+        
+        if (sourceWidth === 0 || sourceHeight === 0) return;
+        
+        // 计算缩放和定位参数（1:1比例居中裁剪）
+        const scale = Math.max(300 / sourceWidth, 300 / sourceHeight);
+        const scaledWidth = sourceWidth * scale;
+        const scaledHeight = sourceHeight * scale;
+        const x = (300 - scaledWidth) / 2;
+        const y = (300 - scaledHeight) / 2;
+        
+        // 绘制媒体元素
+        targetCtx.drawImage(element, x, y, scaledWidth, scaledHeight);
+        
+        // 绘制文字（如果有）
+        if (this.textSettings.text) {
+            targetCtx.save();
+            
+            // 设置文字样式
+            targetCtx.font = `${this.textSettings.fontWeight} ${this.textSettings.fontSize}px ${this.textSettings.fontFamily}`;
+            targetCtx.fillStyle = this.textSettings.color;
+            targetCtx.strokeStyle = '#000000';
+            targetCtx.lineWidth = 2;
+            targetCtx.textAlign = 'center';
+            targetCtx.textBaseline = 'middle';
+            
+            // 绘制多行文字（描边+填充）
+            this.drawMultilineTextToContext(targetCtx, this.textSettings.text);
+            
+            targetCtx.restore();
+        }
+    }
+    
+    // 生成80x80像素的文件缩略图
+    generateThumbnail(fileObj) {
+        return new Promise((resolve) => {
+            try {
+                if (!fileObj || !fileObj.element) {
+                    resolve(null);
+                    return;
+                }
+                
+                // 创建80x80的缩略图Canvas
+                const thumbnailCanvas = document.createElement('canvas');
+                thumbnailCanvas.width = 80;
+                thumbnailCanvas.height = 80;
+                const ctx = thumbnailCanvas.getContext('2d');
+                
+                // 设置背景色
+                ctx.fillStyle = '#f8f9fa';
+                ctx.fillRect(0, 0, 80, 80);
+                
+                const element = fileObj.element;
+                let sourceWidth, sourceHeight;
+                
+                // 根据文件类型获取尺寸
+                if (fileObj.type === 'image' || fileObj.type === 'extracted_frame') {
+                    sourceWidth = element.naturalWidth || element.width;
+                    sourceHeight = element.naturalHeight || element.height;
+                } else if (fileObj.type === 'video') {
+                    sourceWidth = element.videoWidth;
+                    sourceHeight = element.videoHeight;
+                }
+                
+                if (!sourceWidth || !sourceHeight || sourceWidth === 0 || sourceHeight === 0) {
+                    console.warn('无法获取文件尺寸，使用占位符');
+                    // 绘制占位符
+                    ctx.fillStyle = '#dee2e6';
+                    ctx.fillRect(15, 15, 50, 50);
+                    ctx.fillStyle = '#6c757d';
+                    ctx.font = '24px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(fileObj.type === 'video' ? '🎬' : '🖼️', 40, 45);
+                    
+                    const thumbnailDataURL = thumbnailCanvas.toDataURL('image/png', 0.8);
+                    resolve(thumbnailDataURL);
+                    return;
+                }
+                
+                // 计算1:1比例居中裁剪参数
+                const scale = Math.max(80 / sourceWidth, 80 / sourceHeight);
+                const scaledWidth = sourceWidth * scale;
+                const scaledHeight = sourceHeight * scale;
+                const x = (80 - scaledWidth) / 2;
+                const y = (80 - scaledHeight) / 2;
+                
+                // 绘制媒体内容
+                try {
+                    ctx.drawImage(element, x, y, scaledWidth, scaledHeight);
+                    
+                    // 为视频添加播放标识
+                    if (fileObj.type === 'video') {
+                        ctx.save();
+                        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+                        ctx.beginPath();
+                        ctx.arc(40, 40, 16, 0, Math.PI * 2);
+                        ctx.fill();
+                        
+                        ctx.fillStyle = 'white';
+                        ctx.beginPath();
+                        ctx.moveTo(33, 28);
+                        ctx.lineTo(33, 52);
+                        ctx.lineTo(50, 40);
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.restore();
+                    }
+                    
+                    // 转换为DataURL
+                    const quality = fileObj.type === 'video' ? 0.9 : 0.8;
+                    const format = fileObj.type === 'video' ? 'image/jpeg' : 'image/png';
+                    const thumbnailDataURL = thumbnailCanvas.toDataURL(format, quality);
+                    
+                    console.log(`缩略图生成成功: ${fileObj.name} (${thumbnailDataURL.length} bytes)`);
+                    resolve(thumbnailDataURL);
+                    
+                } catch (drawError) {
+                    console.warn('缩略图绘制失败，使用占位符:', drawError);
+                    // 绘制错误占位符
+                    ctx.clearRect(0, 0, 80, 80);
+                    ctx.fillStyle = '#f8d7da';
+                    ctx.fillRect(0, 0, 80, 80);
+                    ctx.fillStyle = '#721c24';
+                    ctx.font = '32px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('❌', 40, 50);
+                    
+                    const thumbnailDataURL = thumbnailCanvas.toDataURL('image/png', 0.8);
+                    resolve(thumbnailDataURL);
+                }
+                
+            } catch (error) {
+                console.error('缩略图生成失败:', error);
+                resolve(null);
+            }
+        });
+    }
+    
+    // 为视频文件生成首帧缩略图
+    generateVideoThumbnail(fileObj) {
+        return new Promise((resolve) => {
+            if (!fileObj || fileObj.type !== 'video' || !fileObj.element) {
+                resolve(null);
+                return;
+            }
+            
+            const video = fileObj.element;
+            const originalTime = video.currentTime;
+            const wasPlaying = !video.paused;
+            
+            // 暂停视频并跳转到0.5秒处抽取帧
+            video.pause();
+            
+            const seekToFrame = () => {
+                const targetTime = Math.min(0.5, video.duration * 0.1); // 0.5秒或10%处
+                video.currentTime = targetTime;
+            };
+            
+            const onSeeked = () => {
+                video.removeEventListener('seeked', onSeeked);
+                
+                // 生成缩略图
+                this.generateThumbnail(fileObj).then((thumbnail) => {
+                    // 恢复视频状态
+                    video.currentTime = originalTime;
+                    if (wasPlaying) {
+                        video.play().catch(() => {
+                            // 播放恢复失败，忽略错误
+                        });
+                    }
+                    resolve(thumbnail);
+                });
+            };
+            
+            video.addEventListener('seeked', onSeeked);
+            
+            // 设置超时保护
+            setTimeout(() => {
+                video.removeEventListener('seeked', onSeeked);
+                // 使用当前帧生成缩略图
+                this.generateThumbnail(fileObj).then(resolve);
+            }, 2000);
+            
+            seekToFrame();
+        });
     }
 }
 

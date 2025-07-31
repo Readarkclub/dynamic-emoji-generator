@@ -106,49 +106,80 @@ body {
     cursor: pointer;
 }
 
-/* 文件列表 */
+/* 文件列表 - 网格布局 */
 .file-list {
     margin-top: 15px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+    padding: 8px;
 }
 
 .file-item {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    padding: 6px 10px;
-    margin: 1px 0;
-    background: #f8f9fa;
-    border-radius: 4px;
-    border-left: 3px solid #007bff;
+    padding: 12px;
+    background: #fff;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     transition: all 0.3s ease;
     cursor: grab;
     user-select: none;
+    position: relative;
+    overflow: hidden;
 }
 
 .file-item:hover {
-    background: #e9ecef;
-    transform: translateX(5px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    transform: translateY(-2px);
+    border-color: #007bff;
 }
 
 .file-item.dragging {
-    opacity: 0.5;
+    opacity: 0.7;
     background: #007bff;
     color: white;
     cursor: grabbing;
-    transform: rotate(2deg);
+    transform: rotate(5deg) scale(1.05);
+    z-index: 1000;
 }
 
 .file-item.drag-over {
-    border-left: 4px solid #28a745;
+    border: 2px solid #28a745;
     background: #d4edda;
+    transform: scale(1.02);
 }
 
-/* 确保所有文件项状态都使用统一间距 */
-.file-item,
-.file-item:hover,
-.file-item.dragging,
-.file-item.drag-over {
-    margin: 1px 0 !important;
+/* 拖拽占位符样式 */
+.drag-placeholder {
+    border: 2px dashed #007bff;
+    background: rgba(0, 123, 255, 0.1);
+    opacity: 0.8;
 }
+
+.drag-placeholder .file-preview {
+    background: transparent;
+    border: 1px dashed #007bff;
+}
+
+.drag-placeholder .file-actions {
+    display: none;
+}
+
+/* 拖拽指示器样式 */
+.drag-indicator {
+    background: rgba(0, 123, 255, 0.1) !important;
+    border: 2px dashed #007bff !important;
+    transform: scale(1.05) !important;
+}
+
+.drag-indicator .file-preview {
+    border: 1px dashed #007bff;
+}
+
+/* 网格布局中不需要特殊间距设置 */
 
 /* 字体相关样式 */
 @import url('https://fonts.googleapis.com/css2?family=Source+Han+Sans+CN:wght@300;400;500;700&display=swap');
@@ -403,47 +434,120 @@ body {
 }
 
 .file-drag-handle {
+    position: absolute;
+    top: 4px;
+    right: 4px;
     cursor: grab;
-    margin-right: 8px;
     font-size: 16px;
     color: #6c757d;
+    background: rgba(255,255,255,0.9);
+    padding: 4px 6px;
+    border-radius: 4px;
+    opacity: 0.6;
+    transition: all 0.3s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    z-index: 10;
+}
+
+.file-item:hover .file-drag-handle {
+    opacity: 1;
+    transform: scale(1.1);
 }
 
 .file-drag-handle:hover {
     color: #007bff;
+    background: rgba(255,255,255,0.95);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    transform: scale(1.15);
 }
 
 .file-item.dragging .file-drag-handle {
     cursor: grabbing;
     color: white;
+    background: rgba(0, 123, 255, 0.8);
+    opacity: 1;
+    transform: scale(1.2);
+    box-shadow: 0 3px 8px rgba(0,0,0,0.4);
 }
 
 .file-preview {
-    width: 35px;
-    height: 35px;
+    width: 80px;
+    height: 80px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    background: #ddd;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+    overflow: hidden;
+    position: relative;
+    flex-shrink: 0;
+}
+
+/* 缩略图图片样式 */
+.thumbnail-img {
+    width: 100%;
+    height: 100%;
     object-fit: cover;
-    border-radius: 4px;
-    margin-right: 8px;
+    border-radius: 8px;
+}
+
+/* 加载状态样式 */
+.thumbnail-loading {
+    font-size: 24px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* 错误状态样式 */
+.thumbnail-error {
+    font-size: 24px;
+    color: #dc3545;
+}
+
+/* 回退表情符号样式 */
+.thumbnail-fallback {
+    font-size: 24px;
+    opacity: 0.8;
 }
 
 .file-info {
-    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    margin-bottom: 8px;
 }
 
 .file-name {
     font-weight: bold;
     color: #333;
+    display: none; /* 隐藏文件名，通过tooltip显示 */
 }
 
 .file-size {
     font-size: 0.9rem;
     color: #666;
+    display: none; /* 隐藏文件大小，通过tooltip显示 */
 }
 
 .file-status {
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     color: #667eea;
-    font-style: italic;
+    text-align: center;
+    padding: 2px 6px;
+    background: rgba(102, 126, 234, 0.1);
+    border-radius: 10px;
+    white-space: nowrap;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .loading-spinner {
@@ -462,19 +566,34 @@ body {
 
 .file-actions {
     display: flex;
-    gap: 5px;
+    gap: 4px;
     align-items: center;
+    justify-content: center;
+    width: 100%;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    position: absolute;
+    bottom: 8px;
+    left: 0;
+    right: 0;
+    padding: 0 8px;
+}
+
+.file-item:hover .file-actions {
+    opacity: 1;
 }
 
 .file-remove {
     background: #ff4757;
     color: white;
     border: none;
-    border-radius: 5px;
-    padding: 5px 10px;
+    border-radius: 4px;
+    padding: 4px 8px;
     cursor: pointer;
-    font-size: 0.8rem;
+    font-size: 0.7rem;
     transition: all 0.3s ease;
+    flex: 1;
+    max-width: 60px;
 }
 
 .file-remove:hover {
@@ -544,20 +663,196 @@ body {
 }
 
 .control-group input,
-.control-group select {
+.control-group select,
+.control-group textarea {
     width: 100%;
     padding: 10px;
     border: 2px solid #ddd;
     border-radius: 8px;
     font-size: 1rem;
     transition: border-color 0.3s ease;
+    font-family: inherit;
 }
 
 .control-group input:focus,
-.control-group select:focus {
+.control-group select:focus,
+.control-group textarea:focus {
     outline: none;
     border-color: #667eea;
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+/* Textarea特定样式 */
+.control-group textarea {
+    resize: vertical;
+    min-height: 60px;
+    max-height: 120px;
+    line-height: 1.4;
+}
+
+/* 美化滚动条 */
+.control-group textarea::-webkit-scrollbar {
+    width: 6px;
+}
+
+.control-group textarea::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.control-group textarea::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+}
+
+.control-group textarea::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+/* 文字层管理面板样式 */
+.text-layers-section {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 15px;
+    margin-bottom: 20px;
+    border: 1px solid #e9ecef;
+}
+
+.layers-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.layers-header h4 {
+    margin: 0;
+    color: #495057;
+}
+
+.btn-sm {
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    border-radius: 4px;
+}
+
+.layers-list {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.layer-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    margin: 5px 0;
+    background: white;
+    border-radius: 6px;
+    border-left: 3px solid transparent;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.layer-item:hover {
+    background: #e3f2fd;
+    transform: translateX(2px);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+
+.layer-item.active {
+    background: #e3f2fd;
+    border-left-color: #2196f3;
+    box-shadow: 0 2px 8px rgba(33,150,243,0.2);
+}
+
+.layer-info {
+    display: flex;
+    align-items: center;
+    flex: 1;
+}
+
+.layer-icon {
+    font-size: 1.2rem;
+    margin-right: 8px;
+}
+
+.layer-details {
+    display: flex;
+    flex-direction: column;
+}
+
+.layer-name {
+    font-weight: bold;
+    font-size: 0.9rem;
+    color: #333;
+}
+
+.layer-preview {
+    font-size: 0.75rem;
+    color: #666;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.layer-controls {
+    display: flex;
+    gap: 4px;
+}
+
+.layer-controls button {
+    background: none;
+    border: none;
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    opacity: 0.6;
+}
+
+.layer-controls button:hover {
+    background: rgba(0,0,0,0.1);
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+.layer-controls .btn-visibility.visible {
+    opacity: 1;
+}
+
+.layer-controls .btn-visibility.hidden {
+    opacity: 0.3;
+}
+
+.layer-controls .btn-lock.locked {
+    opacity: 1;
+    color: #f44336;
+}
+
+/* 当前层编辑面板样式 */
+.current-layer-editor {
+    background: white;
+    border-radius: 10px;
+    padding: 15px;
+    margin-bottom: 20px;
+    border: 2px solid #e3f2fd;
+}
+
+.current-layer-editor h4 {
+    color: #2196f3;
+    border-bottom: 2px solid #e3f2fd;
+    padding-bottom: 8px;
+    margin-bottom: 20px;
+}
+
+#currentLayerName {
+    font-weight: normal;
+    color: #666;
+    font-size: 0.85em;
 }
 
 .control-row {
@@ -746,6 +1041,29 @@ input[type="range"] {
         flex-direction: column;
         gap: 10px;
     }
+    
+    /* 文件列表网格响应式 */
+    .file-list {
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: 8px;
+        padding: 4px;
+    }
+    
+    .file-preview {
+        width: 70px;
+        height: 70px;
+    }
+    
+    .file-item {
+        padding: 8px;
+    }
+    
+    /* 中等屏幕拖拽手柄优化 */
+    .file-drag-handle {
+        font-size: 17px;
+        padding: 5px 7px;
+        opacity: 0.7;
+    }
 }
 
 @media (max-width: 480px) {
@@ -767,6 +1085,42 @@ input[type="range"] {
     #previewCanvas {
         max-width: 100%;
         height: auto;
+    }
+    
+    /* 超小屏幕文件网格调整 */
+    .file-list {
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+        gap: 6px;
+    }
+    
+    .file-preview {
+        width: 60px;
+        height: 60px;
+    }
+    
+    .file-item {
+        padding: 6px;
+    }
+    
+    .file-actions {
+        bottom: 4px;
+        padding: 0 4px;
+    }
+    
+    .file-remove,
+    .file-extract-btn {
+        padding: 2px 4px;
+        font-size: 0.65rem;
+        max-width: 45px;
+    }
+    
+    /* 移动端拖拽手柄优化 */
+    .file-drag-handle {
+        font-size: 18px;
+        padding: 6px 8px;
+        opacity: 0.8;
+        top: 2px;
+        right: 2px;
     }
 }
 
@@ -809,12 +1163,13 @@ input[type="range"] {
     background: #17a2b8;
     color: white;
     border: none;
-    border-radius: 5px;
-    padding: 5px 10px;
+    border-radius: 4px;
+    padding: 4px 8px;
     cursor: pointer;
-    font-size: 0.8rem;
-    margin-left: 5px;
+    font-size: 0.7rem;
     transition: all 0.3s ease;
+    flex: 1;
+    max-width: 60px;
 }
 
 .file-extract-btn:hover:not(:disabled) {
@@ -1093,33 +1448,4 @@ input[type="range"] {
     }
 }
 
-/* 简化文件预览样式 */
-.file-preview-tooltip {
-    position: fixed;
-    z-index: 1000;
-    background: white;
-    border: 2px solid #667eea;
-    border-radius: 8px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-    padding: 4px;
-    pointer-events: none;
-    max-width: 200px;
-    max-height: 200px;
-}
-
-.file-preview-tooltip img {
-    width: 100%;
-    height: auto;
-    max-width: 192px;
-    max-height: 192px;
-    object-fit: cover;
-    border-radius: 4px;
-    display: block;
-}
-
-/* 响应式适配 */
-@media (max-width: 480px) {
-    .file-preview-tooltip {
-        display: none !important; /* 移动端禁用悬停预览 */
-    }
-}
+/* 悬停预览样式已移除，现在使用缩略图直接预览 */
