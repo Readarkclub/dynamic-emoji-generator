@@ -245,7 +245,11 @@ class DynamicEmojiGenerator {
             this.hasUserInteraction = true;
             this.generateGif();
         });
-        document.getElementById('downloadBtn').addEventListener('click', () => this.downloadGif());
+        document.getElementById('generatePngBtn').addEventListener('click', () => {
+            this.hasUserInteraction = true;
+            this.generatePng();
+        });
+        document.getElementById('downloadBtn').addEventListener('click', () => this.download());
         document.getElementById('resetBtn').addEventListener('click', () => this.reset());
         
         // 为文件列表添加拖拽排序事件
@@ -2369,7 +2373,15 @@ class DynamicEmojiGenerator {
         const fileDimensions = document.getElementById('fileDimensions');
         
         resultGif.src = url;
-        fileSizeSpan.textContent = this.formatFileSize(fileSize);
+        
+        // 处理不同格式的文件大小显示
+        if (typeof fileSize === 'string') {
+            // PNG格式，fileSize已经是格式化的字符串（如 'PNG'）
+            fileSizeSpan.textContent = this.estimatePngSize();
+        } else {
+            // GIF格式，fileSize是数字
+            fileSizeSpan.textContent = this.formatFileSize(fileSize);
+        }
         
         // 根据settings参数显示实际尺寸或默认尺寸
         if (settings && settings.width && settings.height) {
@@ -2380,6 +2392,45 @@ class DynamicEmojiGenerator {
         
         resultSection.style.display = 'block';
         resultSection.scrollIntoView({ behavior: 'smooth' });
+    }
+    
+    generatePng() {
+        const dataURL = this.canvas.toDataURL('image/png', 1.0);
+        
+        this.generatedPngUrl = dataURL;
+        this.currentFormat = 'PNG';
+        
+        const downloadBtn = document.getElementById('downloadBtn');
+        downloadBtn.disabled = false;
+        
+        this.showResult(dataURL, 'PNG');
+    }
+    
+    estimatePngSize() {
+        // 估算PNG数据URL的大小
+        if (this.generatedPngUrl) {
+            const base64Length = this.generatedPngUrl.split(',')[1].length;
+            const sizeInBytes = Math.round(base64Length * 0.75); // Base64编码膨胀系数约为4/3
+            return this.formatFileSize(sizeInBytes);
+        }
+        return '估算中...';
+    }
+    
+    downloadPng() {
+        if (!this.generatedPngUrl) return;
+        
+        const link = document.createElement('a');
+        link.download = 'dynamic-emoji-' + Date.now() + '.png';
+        link.href = this.generatedPngUrl;
+        link.click();
+    }
+    
+    download() {
+        if (this.currentFormat === 'PNG') {
+            this.downloadPng();
+        } else if (this.generatedGifUrl) {
+            this.downloadGif();
+        }
     }
     
     downloadGif() {
@@ -2453,12 +2504,15 @@ class DynamicEmojiGenerator {
             document.getElementById('downloadBtn').disabled = true;
             document.getElementById('compressionStatus').style.display = 'none';
             
-            // 清理生成的GIF
+            // 清理生成的GIF和PNG
             if (this.generatedGifUrl) {
                 URL.revokeObjectURL(this.generatedGifUrl);
                 this.generatedGifUrl = null;
                 this.generatedGifBlob = null;
             }
+            
+            this.generatedPngUrl = null;
+            this.currentFormat = null;
             
             // 暂停播放并重绘
             this.pause();
